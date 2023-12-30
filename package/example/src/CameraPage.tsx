@@ -2,7 +2,7 @@ import * as React from 'react'
 import { useRef, useState, useCallback, useMemo } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
 import { PinchGestureHandler, PinchGestureHandlerGestureEvent, TapGestureHandler } from 'react-native-gesture-handler'
-import { CameraRuntimeError, PhotoFile, useCameraDevice, useCameraFormat, useFrameProcessor, VideoFile } from 'react-native-vision-camera'
+import { CameraRuntimeError, PhotoFile, DeviceFilter, useCameraDevice, useCameraDevices, useCameraFormat, useFrameProcessor, VideoFile } from 'react-native-vision-camera'
 import { Camera } from 'react-native-vision-camera'
 import { CONTENT_SPACING, CONTROL_BUTTON_SIZE, MAX_ZOOM_FACTOR, SAFE_AREA_PADDING, SCREEN_HEIGHT, SCREEN_WIDTH } from './Constants'
 import Reanimated, { Extrapolate, interpolate, useAnimatedGestureHandler, useAnimatedProps, useSharedValue } from 'react-native-reanimated'
@@ -45,14 +45,40 @@ export function CameraPage({ navigation }: Props): React.ReactElement {
   const [flash, setFlash] = useState<'off' | 'on'>('off')
   const [enableNightMode, setEnableNightMode] = useState(false)
 
-  // camera device settings
-  const [preferredDevice] = usePreferredCameraDevice()
-  let device = useCameraDevice(cameraPosition)
+  // const [preferredDevice] = usePreferredCameraDevice()
+  // let device = useCameraDevices(cameraPosition)
+  // let device = useCameraDevice('back')
+  const [deviceConfig, setDeviceConfig] = useState<DeviceFilter>({
+    physicalDevices: ['ultra-wide-angle-camera', 'wide-angle-camera', 'telephoto-camera'],
+  });
+  const device = useCameraDevice('back', deviceConfig);
 
-  if (preferredDevice != null && preferredDevice.position === cameraPosition) {
-    // override default device with the one selected by the user in settings
-    device = preferredDevice
-  }
+  const devices = useCameraDevices()
+
+
+  const { hasWide, hasUltra, hasTele } = useMemo(() => {
+    let hasWide = false;
+    let hasUltra = false;
+    let hasTele = false;
+
+    devices.forEach(entry => {
+      const physicalDevices = entry.physicalDevices;
+
+      if (Array.isArray(physicalDevices)) {
+        if (physicalDevices.includes('wide-angle-camera')) {
+          hasWide = true;
+        }
+        if (physicalDevices.includes('ultra-wide-angle-camera')) {
+          hasUltra = true;
+        }
+        if (physicalDevices.includes('telephoto-camera')) {
+          hasTele = true;
+        }
+      }
+    });
+
+    return { hasWide, hasUltra, hasTele };
+  }, [devices]);
 
   const [targetFps, setTargetFps] = useState(60)
 
@@ -145,6 +171,7 @@ export function CameraPage({ navigation }: Props): React.ReactElement {
       const startZoom = context.startZoom ?? 0
       const scale = interpolate(event.scale, [1 - 1 / SCALE_FULL_ZOOM, 1, SCALE_FULL_ZOOM], [-1, 0, 1], Extrapolate.CLAMP)
       zoom.value = interpolate(scale, [-1, 0, 1], [minZoom, startZoom, maxZoom], Extrapolate.CLAMP)
+      console.log("here pinch", zoom.value)
     },
   })
   //#endregion
@@ -160,7 +187,7 @@ export function CameraPage({ navigation }: Props): React.ReactElement {
   const frameProcessor = useFrameProcessor((frame) => {
     'worklet'
 
-    console.log(`${frame.timestamp}: ${frame.width}x${frame.height} ${frame.pixelFormat} Frame (${frame.orientation})`)
+    // console.log(`${frame.timestamp}: ${frame.width}x${frame.height} ${frame.pixelFormat} Frame (${frame.orientation})`)
     examplePlugin(frame)
     exampleKotlinSwiftPlugin(frame)
   }, [])
@@ -242,6 +269,31 @@ export function CameraPage({ navigation }: Props): React.ReactElement {
         <PressableOpacity style={styles.button} onPress={() => navigation.navigate('CodeScannerPage')}>
           <IonIcon name="qr-code-outline" color="white" size={24} />
         </PressableOpacity>
+        {hasUltra && (
+          // <PressableOpacity style={styles.button} onPress={() => setDeviceType("ultra-wide-angle-camera")}>
+          <PressableOpacity style={styles.button} onPress={() => setDeviceConfig({
+            ...deviceConfig,
+            physicalDevices: ["ultra-wide-angle-camera"],
+          })}>
+            <Text style={styles.text}>ultra</Text>
+          </PressableOpacity>)}
+        {hasWide && (
+          <PressableOpacity style={styles.button} onPress={() => setDeviceConfig({
+            ...deviceConfig,
+            physicalDevices: ["wide-angle-camera"],
+          })}>
+            {/* <PressableOpacity style={styles.button} onPress={() => setDeviceType("wide-angle-camera")}> */}
+            <Text style={styles.text}>wide</Text>
+          </PressableOpacity>
+        )}
+        {hasTele && (
+          <PressableOpacity style={styles.button} onPress={() => setDeviceConfig({
+            ...deviceConfig,
+            physicalDevices: ["telephoto-camera"],
+          })}>
+            <Text style={styles.text}>tele</Text>
+          </PressableOpacity>
+        )}
       </View>
     </View>
   )
