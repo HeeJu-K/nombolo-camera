@@ -1,5 +1,5 @@
-import React, { useCallback, useMemo, useState } from 'react'
-import { StyleSheet, View, ActivityIndicator, PermissionsAndroid, Platform } from 'react-native'
+import React, { useCallback, useMemo, useState, useEffect } from 'react'
+import { Image, StyleSheet, Text, View, ActivityIndicator, PermissionsAndroid, Platform } from 'react-native'
 import Video, { LoadError, OnLoadData } from 'react-native-video'
 import { SAFE_AREA_PADDING } from './Constants'
 import { useIsForeground } from './hooks/useIsForeground'
@@ -12,6 +12,12 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import type { Routes } from './Routes'
 import { useIsFocused } from '@react-navigation/core'
 import FastImage, { OnLoadEvent } from 'react-native-fast-image'
+
+import { RNFFmpeg, RNFFmpegConfig } from "react-native-ffmpeg";
+import { getCurrentFrameWithDecimalZeroes, getFrameGaps } from "./utils";
+import VideoFramesSrcubber from "./components/index";
+
+import RNFS from 'react-native-fs';
 
 const requestSavePermission = async (): Promise<boolean> => {
   if (Platform.OS !== 'android') return true
@@ -36,6 +42,90 @@ export function MediaPage({ navigation, route }: Props): React.ReactElement {
   const isScreenFocused = useIsFocused()
   const isVideoPaused = !isForeground || !isScreenFocused
   const [savingState, setSavingState] = useState<'none' | 'saving' | 'saved'>('none')
+
+  const [inputVideoPath, setInputVideoPath] = useState("");
+  const [framesPath, setFramesPath] = useState("");
+  const [totalFrames, setTotalFrames] = useState(0);
+  const [currentFrame, setCurrentFrame] = useState(1);
+
+  // const imageFilePrefix = "video-frame-img-";
+  const imageFilePrefix = "frame_";
+  const imageFileExtension = "jpg";
+  const totalDecimalZeroes = 7;
+
+  const backgroundFramesMultiplier = Math.ceil(totalFrames / 7) + 1;
+  const backgroundPreviewFrames = totalFrames
+    ? getFrameGaps(backgroundFramesMultiplier, backgroundFramesMultiplier * 7)
+    : [];
+
+  // useEffect(() => {
+  //   const proceed = async () => {
+
+  //     setInputVideoPath(path);
+  //   };
+  //   proceed();
+  // }, []);
+  useEffect(() => {
+
+    const extractFrames = async (inputVideoPath: String) => {
+      const inputVideoPathArr = inputVideoPath?.split("/");
+      inputVideoPathArr?.pop();
+      const outputFramesPath = inputVideoPathArr?.join("/");
+      const command = `-i ${inputVideoPath} -vf fps=10 ${outputFramesPath}/frame_%07d.jpg`;
+
+      try {
+        const result = await RNFFmpeg.execute(command);
+        if (result === 0) {
+          console.log('Frames extracted successfully');
+          try {
+            const files = await RNFS.readdir(outputFramesPath);
+            console.log("HERE SEE FILES: ", files)
+          } catch (error) {
+            console.error('Error reading directory:', error);
+          }
+        } else {
+          console.log('Error in extracting frames');
+        }
+      } catch (error) {
+        console.error('Error:', error);
+      }
+
+
+      console.log("HERE SEE before getting RNFS", outputFramesPath)
+      setInputVideoPath(path);
+      setFramesPath(outputFramesPath);
+      // setTotalFrames(files.filter(file => file.endsWith('.jpg')).length);
+      setCurrentFrame(10);
+    };
+
+    // if (inputVideoPath) {
+    //   console.log("Here in input video path", inputVideoPath, "path", path)
+    //   const inputVideoPathArr = inputVideoPath?.split("/");
+    //   inputVideoPathArr?.pop();
+    //   const outputFramesPath = inputVideoPathArr?.join("/");
+
+    //   if (!framesPath) {
+    //     RNFFmpeg?.executeAsync(
+    //       `-y -i ${path} -r 30 ${outputFramesPath}/${imageFilePrefix}%0${totalDecimalZeroes}d.${imageFileExtension}`,
+    //       (execution) => {
+    //         console.log("HERE IN execution", execution)
+    //         if (execution.returnCode === 0) {
+    //           console.log("SUCCESS", execution.executionId);
+    //           RNFFmpegConfig.getLastCommandOutput().then((output) => {
+    //             setFramesPath(outputFramesPath ?? "");
+    //             setTotalFrames((output.match(/frame=/gi)?.length ?? 0) - 1);
+    //             setCurrentFrame(1);
+    //           });
+    //         } else {
+    //           console.log("ERROR:", execution.returnCode);
+    //         }
+    //       }
+    //     );
+    //   }
+    //   console.log("here in see frames path", framesPath)
+    // }
+    extractFrames(path);
+  }, []);
 
   const onMediaLoad = useCallback((event: OnLoadData | OnLoadEvent) => {
     if (isVideoOnLoadEvent(event)) {
@@ -74,7 +164,15 @@ export function MediaPage({ navigation, route }: Props): React.ReactElement {
     }
   }, [path, type])
 
-  const source = useMemo(() => ({ uri: `file://${path}` }), [path])
+  // const source = useMemo(() => ({ uri: `file://${path}` }), [path])
+  const source = { uri: `file://${path}` }
+  // console.log("HERE SEE IMG PATH", path, source.uri)
+  const videoimg = { uri: `file://${framesPath}/frame_0000010.jpg` }
+  console.log("HERE SEE VIDEO", videoimg)
+  //   console.log("HERE SEE DECIMALS", `${framesPath}/${imageFilePrefix}${getCurrentFrameWithDecimalZeroes(
+  //     currentFrame,
+  //     totalDecimalZeroes
+  // )}.${imageFileExtension}`)
 
   const screenStyle = useMemo(() => ({ opacity: hasMediaLoaded ? 1 : 0 }), [hasMediaLoaded])
 
@@ -84,25 +182,54 @@ export function MediaPage({ navigation, route }: Props): React.ReactElement {
         <FastImage source={source} style={StyleSheet.absoluteFill} resizeMode="cover" onLoadEnd={onMediaLoadEnd} onLoad={onMediaLoad} />
       )}
       {type === 'video' && (
-        <Video
-          source={source}
-          style={StyleSheet.absoluteFill}
-          paused={isVideoPaused}
-          resizeMode="cover"
-          posterResizeMode="cover"
-          allowsExternalPlayback={false}
-          automaticallyWaitsToMinimizeStalling={false}
-          disableFocus={true}
-          repeat={true}
-          useTextureView={false}
-          controls={false}
-          playWhenInactive={true}
-          ignoreSilentSwitch="ignore"
-          onReadyForDisplay={onMediaLoadEnd}
-          onLoad={onMediaLoad}
-          onError={onMediaLoadError}
-        />
+        <>
+          {/* <FastImage source={videoimg} style={StyleSheet.absoluteFill} resizeMode="cover" onLoadEnd={onMediaLoadEnd} onLoad={onMediaLoad} /> */}
+          {inputVideoPath && framesPath ? (
+            <>
+              <View>
+                <FastImage source={{
+                  uri: `${framesPath}/${imageFilePrefix}${getCurrentFrameWithDecimalZeroes(
+                    currentFrame,
+                    totalDecimalZeroes
+                  )}.${imageFileExtension}`,
+                }}
+                  style={StyleSheet.absoluteFill} resizeMode="cover" onLoadEnd={onMediaLoadEnd} onLoad={onMediaLoad}
+                />
+                <Image
+                  source={{
+                    uri: `${framesPath}/${imageFilePrefix}${getCurrentFrameWithDecimalZeroes(
+                      currentFrame,
+                      totalDecimalZeroes
+                    )}.${imageFileExtension}`,
+                  }}
+                  style={{ height: 400, width: 250, backgroundColor: "#000" }}
+                />
+              </View>
+
+              <VideoFramesSrcubber
+                currentFrame={currentFrame}
+                onFrameChanged={(updatedFrame: number) =>
+                  setCurrentFrame(updatedFrame)
+                }
+                backgroundPreviewFrames={backgroundPreviewFrames}
+                framesPath={framesPath}
+                totalDecimalZeroes={totalDecimalZeroes}
+                imageFileExtension={imageFileExtension}
+                imageFilePrefix={imageFilePrefix}
+              />
+            </>
+          ) : (
+            <>
+              <ActivityIndicator color={"blue"} size={"large"} />
+              <Text style={{ marginTop: 10 }}>Processing Video ...</Text>
+              <Text style={{ marginTop: 10 }}>
+                Generating Scrubber to select your cover frame ...
+              </Text>
+            </>)}
+        </>
       )}
+
+
 
       <PressableOpacity style={styles.closeButton} onPress={navigation.goBack}>
         <IonIcon name="close" size={35} color="white" style={styles.icon} />

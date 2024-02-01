@@ -1,7 +1,8 @@
 import * as React from 'react'
 import { useRef, useState, useCallback, useMemo } from 'react'
-import { StyleSheet, Text, View } from 'react-native'
+import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { PinchGestureHandler, PinchGestureHandlerGestureEvent, TapGestureHandler } from 'react-native-gesture-handler'
+import Animated, { runOnJS } from 'react-native-reanimated';
 import { CameraRuntimeError, PhotoFile, DeviceFilter, useCameraDevice, useCameraDevices, useCameraFormat, useFrameProcessor, VideoFile } from 'react-native-vision-camera'
 import { Camera } from 'react-native-vision-camera'
 import { CONTENT_SPACING, CONTROL_BUTTON_SIZE, MAX_ZOOM_FACTOR, SAFE_AREA_PADDING, SCREEN_HEIGHT, SCREEN_WIDTH } from './Constants'
@@ -34,6 +35,7 @@ export function CameraPage({ navigation }: Props): React.ReactElement {
   const hasMicrophonePermission = useMemo(() => Camera.getMicrophonePermissionStatus() === 'granted', [])
   const zoom = useSharedValue(0)
   const isPressingButton = useSharedValue(false)
+  const [isRecording, setIsRecording] = useState(false)
 
   // check if camera page is active
   const isFocussed = useIsFocused()
@@ -52,7 +54,6 @@ export function CameraPage({ navigation }: Props): React.ReactElement {
     physicalDevices: ['ultra-wide-angle-camera', 'wide-angle-camera', 'telephoto-camera'],
   });
   const device = useCameraDevice('back', deviceConfig);
-
   const devices = useCameraDevices()
 
 
@@ -127,6 +128,7 @@ export function CameraPage({ navigation }: Props): React.ReactElement {
     console.log('Camera initialized!')
     setIsCameraInitialized(true)
   }, [])
+  
   const onMediaCaptured = useCallback(
     (media: PhotoFile | VideoFile, type: 'photo' | 'video') => {
       console.log(`Media captured! ${JSON.stringify(media)}`)
@@ -163,11 +165,18 @@ export function CameraPage({ navigation }: Props): React.ReactElement {
   // The gesture handler maps the linear pinch gesture (0 - 1) to an exponential curve since a camera's zoom
   // function does not appear linear to the user. (aka zoom 0.1 -> 0.2 does not look equal in difference as 0.8 -> 0.9)
   const onPinchGesture = useAnimatedGestureHandler<PinchGestureHandlerGestureEvent, { startZoom?: number }>({
+    
     onStart: (_, context) => {
+      runOnJS(setDeviceConfig)({
+        ...deviceConfig,
+        physicalDevices: ['ultra-wide-angle-camera', 'wide-angle-camera', 'telephoto-camera'],
+      });
+      console.log("start zoom value", zoom.value)
       context.startZoom = zoom.value
     },
     onActive: (event, context) => {
       // we're trying to map the scale gesture to a linear zoom here
+      
       const startZoom = context.startZoom ?? 0
       const scale = interpolate(event.scale, [1 - 1 / SCALE_FULL_ZOOM, 1, SCALE_FULL_ZOOM], [-1, 0, 1], Extrapolate.CLAMP)
       zoom.value = interpolate(scale, [-1, 0, 1], [minZoom, startZoom, maxZoom], Extrapolate.CLAMP)
@@ -229,6 +238,7 @@ export function CameraPage({ navigation }: Props): React.ReactElement {
         style={styles.captureButton}
         camera={camera}
         onMediaCaptured={onMediaCaptured}
+        setIsRecording={setIsRecording}
         cameraZoom={zoom}
         minZoom={minZoom}
         maxZoom={maxZoom}
@@ -236,7 +246,7 @@ export function CameraPage({ navigation }: Props): React.ReactElement {
         enabled={isCameraInitialized && isActive}
         setIsPressingButton={setIsPressingButton}
       />
-
+      
       <StatusBarBlurBackground />
 
       <View style={styles.rightButtonRow}>

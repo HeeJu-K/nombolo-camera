@@ -31,7 +31,7 @@ const BORDER_WIDTH = CAPTURE_BUTTON_SIZE * 0.1
 interface Props extends ViewProps {
   camera: React.RefObject<Camera>
   onMediaCaptured: (media: PhotoFile | VideoFile, type: 'photo' | 'video') => void
-
+  setIsRecording: React.Dispatch<React.SetStateAction<boolean>>
   minZoom: number
   maxZoom: number
   cameraZoom: Reanimated.SharedValue<number>
@@ -46,6 +46,7 @@ interface Props extends ViewProps {
 const _CaptureButton: React.FC<Props> = ({
   camera,
   onMediaCaptured,
+  setIsRecording,
   minZoom,
   maxZoom,
   cameraZoom,
@@ -56,7 +57,7 @@ const _CaptureButton: React.FC<Props> = ({
   ...props
 }): React.ReactElement => {
   const pressDownDate = useRef<Date | undefined>(undefined)
-  const isRecording = useRef(false)
+  const isRecordingRef = useRef(false)
   const recordingProgress = useSharedValue(0)
   const takePhotoOptions = useMemo<TakePhotoOptions>(
     () => ({
@@ -83,7 +84,8 @@ const _CaptureButton: React.FC<Props> = ({
   }, [camera, onMediaCaptured, takePhotoOptions])
 
   const onStoppedRecording = useCallback(() => {
-    isRecording.current = false
+    isRecordingRef.current = false
+    setIsRecording(false)
     cancelAnimation(recordingProgress)
     console.log('stopped recording video!')
   }, [recordingProgress])
@@ -117,7 +119,8 @@ const _CaptureButton: React.FC<Props> = ({
       })
       // TODO: wait until startRecording returns to actually find out if the recording has successfully started
       console.log('called startRecording()!')
-      isRecording.current = true
+      isRecordingRef.current = true
+      setIsRecording(true)
     } catch (e) {
       console.error('failed to start recording!', e, 'camera')
     }
@@ -276,7 +279,7 @@ const _CaptureButton: React.FC<Props> = ({
           simultaneousHandlers={tapHandler}>
           <Reanimated.View style={styles.flex}>
             <Reanimated.View style={[styles.shadow, shadowStyle]} />
-            <View style={styles.button} />
+            <View style={isRecordingRef.current ? styles.recordingButton : styles.button} />
           </Reanimated.View>
         </PanGestureHandler>
       </Reanimated.View>
@@ -304,4 +307,11 @@ const styles = StyleSheet.create({
     borderWidth: BORDER_WIDTH,
     borderColor: 'white',
   },
+  recordingButton: {
+    width: CAPTURE_BUTTON_SIZE,
+    height: CAPTURE_BUTTON_SIZE,
+    borderRadius: CAPTURE_BUTTON_SIZE / 2,
+    borderWidth: BORDER_WIDTH,
+    borderColor: 'red',
+  }
 })
