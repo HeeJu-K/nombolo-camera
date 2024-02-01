@@ -53,21 +53,3 @@ function App() {
 ```
 
 > See the [example](./package/example/) app
-
-### Adopting at scale
-
-<a href="https://github.com/sponsors/mrousavy">
-  <img align="right" width="160" alt="This library helped you? Consider sponsoring!" src=".github/funding-octocat.svg">
-</a>
-
-VisionCamera is provided _as is_, I work on it in my free time.
-
-If you're integrating VisionCamera in a production app, consider [funding this project](https://github.com/sponsors/mrousavy) and <a href="mailto:me@mrousavy.com?subject=Adopting VisionCamera at scale">contact me</a> to receive premium enterprise support, help with issues, prioritize bugfixes, request features, help at integrating VisionCamera and/or Frame Processors, and more.
-
-### Socials
-
-* 🐦 [**Follow me on Twitter**](https://twitter.com/mrousavy) for updates
-* 📝 [**Check out my blog**](https://mrousavy.com/blog) for examples and experiments
-* 💬 [**Join the Margelo Community Discord**](https://discord.gg/6CSHz2qAvA) for chatting about VisionCamera
-* 💖 [**Sponsor me on GitHub**](https://github.com/sponsors/mrousavy) to support my work
-* 🍪 [**Buy me a Ko-Fi**](https://ko-fi.com/mrousavy) to support my work
