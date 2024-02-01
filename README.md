@@ -1,37 +1,25 @@
-<a href="https://margelo.io">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="./docs/static/img/banner-dark.png" />
-    <source media="(prefers-color-scheme: light)" srcset="./docs/static/img/banner-light.png" />
-    <img alt="VisionCamera" src="./docs/static/img/banner-light.png" />
-  </picture>
-</a>
 
-<br />
-
-<div>
-  <img align="right" width="35%" src="docs/static/img/example.png">
-</div>
 
 ### Features
 
-VisionCamera is a powerful, high-performance Camera library for React Native. It features:
+This project is using [React Native Vision Camera](https://react-native-vision-camera.com/docs) to build a posting photo/video feature on social app.
 
 * 📸 Photo and Video capture
-* 👁️ QR/Barcode scanner
-* 📱 Customizable devices and multi-cameras ("fish-eye" zoom)
-* 🎞️ Customizable resolutions and aspect-ratios (4k/8k images)
-* ⏱️ Customizable FPS (30..240 FPS)
-* 🧩 [Frame Processors](https://react-native-vision-camera.com/docs/guides/frame-processors) (JS worklets to run facial recognition, AI object detection, realtime video chats, ...)
+* 📷 Select devices and multi-cameras ("fish-eye" zoom)
 * 🔍 Smooth zooming (Reanimated)
-* ⏯️ Fast pause and resume
-* 🌓 HDR & Night modes
-* ⚡ Custom C++/GPU accelerated video pipeline (OpenGL)
+* 📱 QR/Barcode scanner
+* ⏯️ Pause and resume video
+* 👁️ Select video thumbnail
+* 📍 Add location and tags to the post
+* 🫙 Store video as draft
+* 🧩 Compress the video and post
 
 Install VisionCamera from npm:
 
 ```sh
 yarn add react-native-vision-camera
 cd ios && pod install
+yarn bootstrap #(in /package directory)
 ```
 
 ..and get started by [setting up permissions](https://react-native-vision-camera.com/docs/guides)!
