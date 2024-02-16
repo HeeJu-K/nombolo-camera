@@ -16,6 +16,8 @@ import FastImage, { OnLoadEvent } from 'react-native-fast-image'
 import { RNFFmpeg, RNFFmpegConfig } from "react-native-ffmpeg";
 import { getCurrentFrameWithDecimalZeroes, getFrameGaps } from "./utils";
 import VideoFramesSrcubber from "./components/index";
+import { getVideoDuration } from 'react-native-video-duration';
+
 
 import RNFS from 'react-native-fs';
 
@@ -79,7 +81,8 @@ export function MediaPage({ navigation, route }: Props): React.ReactElement {
           console.log('Frames extracted successfully');
           try {
             const files = await RNFS.readdir(outputFramesPath);
-            console.log("HERE SEE FILES: ", files)
+            console.log("HERE SEE FILES: ", files, files.length)
+            setTotalFrames(Math.floor(files.length / 10))
           } catch (error) {
             console.error('Error reading directory:', error);
           }
@@ -89,13 +92,19 @@ export function MediaPage({ navigation, route }: Props): React.ReactElement {
       } catch (error) {
         console.error('Error:', error);
       }
-
-
+      // getVideoDuration(inputVideoPath).then((duration: any)  => {
+      //   setTotalFrames(Math.floor(duration / 10))
+      // });
+      // setTotalFrames(getVideoDuration(inputVideoPath)/10)
+      // const result = await getVideoDuration(inputVideoPath) as number;
       console.log("HERE SEE before getting RNFS", outputFramesPath)
       setInputVideoPath(path);
       setFramesPath(outputFramesPath);
+      // setTotalFrames
       // setTotalFrames(files.filter(file => file.endsWith('.jpg')).length);
-      setCurrentFrame(10);
+      setCurrentFrame(1);
+      // console.log("JERE SEE result", result)
+      // setTotalFrames(Math.floor(result / 10))
     };
 
     // if (inputVideoPath) {
@@ -168,7 +177,6 @@ export function MediaPage({ navigation, route }: Props): React.ReactElement {
   const source = { uri: `file://${path}` }
   // console.log("HERE SEE IMG PATH", path, source.uri)
   const videoimg = { uri: `file://${framesPath}/frame_0000010.jpg` }
-  console.log("HERE SEE VIDEO", videoimg)
   //   console.log("HERE SEE DECIMALS", `${framesPath}/${imageFilePrefix}${getCurrentFrameWithDecimalZeroes(
   //     currentFrame,
   //     totalDecimalZeroes

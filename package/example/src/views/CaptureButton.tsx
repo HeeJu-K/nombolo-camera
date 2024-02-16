@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { StyleSheet, View, ViewProps } from 'react-native'
 import {
   PanGestureHandler,
@@ -26,11 +26,12 @@ const PAN_GESTURE_HANDLER_FAIL_X = [-SCREEN_WIDTH, SCREEN_WIDTH]
 const PAN_GESTURE_HANDLER_ACTIVE_Y = [-2, 2]
 
 const START_RECORDING_DELAY = 200
-const BORDER_WIDTH = CAPTURE_BUTTON_SIZE * 0.1
+const BORDER_WIDTH = CAPTURE_BUTTON_SIZE * 0.05
 
 interface Props extends ViewProps {
   camera: React.RefObject<Camera>
   onMediaCaptured: (media: PhotoFile | VideoFile, type: 'photo' | 'video') => void
+  isRecording: boolean
   setIsRecording: React.Dispatch<React.SetStateAction<boolean>>
   minZoom: number
   maxZoom: number
@@ -41,11 +42,16 @@ interface Props extends ViewProps {
   enabled: boolean
 
   setIsPressingButton: (isPressingButton: boolean) => void
+
+  captureMode: 'photo' | 'video'
+  isRecordingFinished: boolean
+  setIsRecordingFinished: (isRecordingFinished: boolean) => void
 }
 
 const _CaptureButton: React.FC<Props> = ({
   camera,
   onMediaCaptured,
+  isRecording,
   setIsRecording,
   minZoom,
   maxZoom,
@@ -53,6 +59,9 @@ const _CaptureButton: React.FC<Props> = ({
   flash,
   enabled,
   setIsPressingButton,
+  captureMode,
+  isRecordingFinished,
+  setIsRecordingFinished,
   style,
   ...props
 }): React.ReactElement => {
@@ -69,6 +78,7 @@ const _CaptureButton: React.FC<Props> = ({
     [flash],
   )
   const isPressingButton = useSharedValue(false)
+  const [isPausedRecording, setIsPausedRecording] = useState(false)
 
   //#region Camera Capture
   const takePhoto = useCallback(async () => {
@@ -96,10 +106,40 @@ const _CaptureButton: React.FC<Props> = ({
       console.log('calling stopRecording()...')
       await camera.current.stopRecording()
       console.log('called stopRecording()!')
+      setIsRecordingFinished(false)
+      setIsRecording(false)
+      setIsPausedRecording(false)
     } catch (e) {
       console.error('failed to stop recording!', e)
     }
   }, [camera])
+  const pauseRecording = useCallback(async () => {
+    try {
+      if (camera.current == null) throw new Error('Camera ref is null!')
+      console.log('Pausing recording...')
+      await camera.current.pauseRecording()
+      setIsRecording(false)
+      setIsPausedRecording(true)
+      console.log('Recording paused!')
+    } catch (e) {
+      console.error('Failed to pause recording!', e)
+    }
+  }, [camera])
+
+  const resumeRecording = useCallback(async () => {
+    try {
+      if (camera.current == null) throw new Error('Camera ref is null!')
+      console.log('Resuming recording...')
+      await camera.current.resumeRecording()
+      setIsPausedRecording(false)
+      setIsRecording(true)
+      isRecordingRef.current = true
+      console.log('Recording resumed!')
+    } catch (e) {
+      console.error('Failed to resume recording!', e)
+    }
+  }, [camera])
+
   const startRecording = useCallback(() => {
     try {
       if (camera.current == null) throw new Error('Camera ref is null!')
@@ -141,53 +181,91 @@ const _CaptureButton: React.FC<Props> = ({
       // there already is an ongoing (or already resolved) takePhoto() call (remember that we called takePhoto() when the user pressed down), and
       // if yes, use that. If no, we just try calling takePhoto() again
       console.debug(`state: ${Object.keys(State)[event.state]}`)
-      switch (event.state) {
-        case State.BEGAN: {
-          // enter "recording mode"
-          recordingProgress.value = 0
-          isPressingButton.value = true
-          const now = new Date()
-          pressDownDate.current = now
-          setTimeout(() => {
-            if (pressDownDate.current === now) {
-              // user is still pressing down after 200ms, so his intention is to create a video
-              startRecording()
-            }
-          }, START_RECORDING_DELAY)
-          setIsPressingButton(true)
-          return
-        }
-        case State.END:
-        case State.FAILED:
-        case State.CANCELLED: {
-          // exit "recording mode"
-          try {
-            if (pressDownDate.current == null) throw new Error('PressDownDate ref .current was null!')
+      if (captureMode === 'photo') {
+        switch (event.state) {
+          case State.BEGAN: {
+            // enter "recording mode"
+            recordingProgress.value = 0
+            isPressingButton.value = true
             const now = new Date()
-            const diff = now.getTime() - pressDownDate.current.getTime()
-            pressDownDate.current = undefined
-            if (diff < START_RECORDING_DELAY) {
-              // user has released the button within 200ms, so his intention is to take a single picture.
-              await takePhoto()
-            } else {
-              // user has held the button for more than 200ms, so he has been recording this entire time.
-              await stopRecording()
-            }
-          } finally {
+            pressDownDate.current = now
             setTimeout(() => {
-              isPressingButton.value = false
-              setIsPressingButton(false)
-            }, 500)
+              if (pressDownDate.current === now) {
+                // user is still pressing down after 200ms, so his intention is to create a video
+                startRecording()
+              }
+            }, START_RECORDING_DELAY)
+            setIsPressingButton(true)
+            return
           }
-          return
+          case State.END:
+          case State.FAILED:
+          case State.CANCELLED: {
+            // exit "recording mode"
+            try {
+              if (pressDownDate.current == null) throw new Error('PressDownDate ref .current was null!')
+              const now = new Date()
+              const diff = now.getTime() - pressDownDate.current.getTime()
+              pressDownDate.current = undefined
+              if (diff < START_RECORDING_DELAY) {
+                // user has released the button within 200ms, so his intention is to take a single picture.
+                await takePhoto()
+              } else {
+                // user has held the button for more than 200ms, so he has been recording this entire time.
+                await stopRecording()
+              }
+            } finally {
+              setTimeout(() => {
+                isPressingButton.value = false
+                setIsPressingButton(false)
+              }, 500)
+            }
+            return
+          }
+          default:
+            break
         }
-        default:
-          break
+      }
+      // capture mode is video
+      else {
+        if (event.state === State.BEGAN) {
+          // I think it is always going to be BEGAN
+          // need to switch through start recording, pause recording, resume recording
+          // stop recording will be taken care elsewhere
+          if (isRecordingFinished) {
+            await stopRecording()
+            return
+          }
+          if (isRecording) {
+            await pauseRecording()
+            return
+          } else if (isPausedRecording) {
+            await resumeRecording()
+            return
+          } else {
+            startRecording()
+            return
+          }
+
+        }
       }
     },
-    [isPressingButton, recordingProgress, setIsPressingButton, startRecording, stopRecording, takePhoto],
+    [isPressingButton, recordingProgress, setIsPressingButton, startRecording, stopRecording, takePhoto, captureMode, isRecording, isPausedRecording, isRecordingFinished],
   )
   //#endregion
+  useEffect(() => {
+    console.log("HEREEE RECORDING FINISHED")
+    const finishRecording = async () => {
+      if (isRecording || isPausedRecording) {
+        try {
+          await stopRecording()
+        } catch (e) {
+          console.error('Failed to finish recording!', e)
+        }
+      }
+    }
+    finishRecording()
+  }, [isRecordingFinished])
   //#region Pan handler
   const panHandler = useRef<PanGestureHandler>()
   const onPanGestureEvent = useAnimatedGestureHandler<PanGestureHandlerGestureEvent, { offsetY?: number; startY?: number }>({
@@ -208,12 +286,11 @@ const _CaptureButton: React.FC<Props> = ({
     },
   })
   //#endregion
-
-  const shadowStyle = useAnimatedStyle(
+  const innerButtonPhotoStyle = useAnimatedStyle(
     () => ({
       transform: [
         {
-          scale: withSpring(isPressingButton.value ? 1 : 0, {
+          scale: withSpring(isPressingButton.value ? 1 : 1, {
             mass: 1,
             damping: 35,
             stiffness: 300,
@@ -222,6 +299,25 @@ const _CaptureButton: React.FC<Props> = ({
       ],
     }),
     [isPressingButton],
+  )
+  const innerButtonRecordingStyle = useAnimatedStyle(
+    () => ({
+      borderRadius: !isRecording ? CAPTURE_BUTTON_SIZE * 0.75 / 2 : CAPTURE_BUTTON_SIZE * 0.525 / 2,
+      // inner button width when not recording: CAPTURE_BUTTON_SIZE * 0.75, when recording: (CAPTURE_BUTTON_SIZE * 0.75)*0.7 = CAPTURE_BUTTON_SIZE * 0.525
+      transform: [
+        {
+          scale: withSpring(isRecording ? 0.7 : 1, {
+            mass: 1,
+            damping: 35,
+            stiffness: 300,
+          }),
+        },
+        { translateX: withSpring(!isRecording ? 0 : CAPTURE_BUTTON_SIZE * 0.225 / 2) },
+        { translateY: withSpring(!isRecording ? 0 : CAPTURE_BUTTON_SIZE * 0.225 / 2) }
+        // move half of (inner button size - inner button recording size ) to place it at center when recording
+      ],
+    }),
+    [isRecording],
   )
   const buttonStyle = useAnimatedStyle(() => {
     let scale: number
@@ -278,8 +374,14 @@ const _CaptureButton: React.FC<Props> = ({
           onGestureEvent={onPanGestureEvent}
           simultaneousHandlers={tapHandler}>
           <Reanimated.View style={styles.flex}>
-            <Reanimated.View style={[styles.shadow, shadowStyle]} />
-            <View style={isRecordingRef.current ? styles.recordingButton : styles.button} />
+            <View style={!isRecordingRef.current ? styles.button : captureMode == 'video' ? styles.recordingButton : styles.button}>
+              {captureMode === 'photo' ? (
+                <View style={[styles.innerButton, isPressingButton.value ? { backgroundColor: 'red' } : { backgroundColor: 'white' }]} />
+              ) : (
+                <Reanimated.View style={[styles.innerButton, { backgroundColor: 'red' }, innerButtonRecordingStyle]} />
+              )}
+              {/* <Reanimated.View style={[innerButtonRecording, style]}/> */}
+            </View>
           </Reanimated.View>
         </PanGestureHandler>
       </Reanimated.View>
@@ -300,11 +402,22 @@ const styles = StyleSheet.create({
     borderRadius: CAPTURE_BUTTON_SIZE / 2,
     backgroundColor: '#e34077',
   },
+  innerButton: {
+    position: 'absolute',
+    width: CAPTURE_BUTTON_SIZE * 0.75,
+    height: CAPTURE_BUTTON_SIZE * 0.75,
+    borderRadius: CAPTURE_BUTTON_SIZE * 0.75 / 2,
+    backgroundColor: 'white',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   button: {
     width: CAPTURE_BUTTON_SIZE,
     height: CAPTURE_BUTTON_SIZE,
     borderRadius: CAPTURE_BUTTON_SIZE / 2,
     borderWidth: BORDER_WIDTH,
+    justifyContent: 'center',
+    alignItems: 'center',
     borderColor: 'white',
   },
   recordingButton: {

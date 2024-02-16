@@ -61,23 +61,35 @@ export default function VideoFramesSrcubber({
             }),
         [currentFrame]
     );
-    console.log("in components index end")
 
     return (
         <View style={styles.scrubberContainer}>
             {backgroundPreviewFrames.map((frameNumber, i) => (
-                <ImageBackground
-                    key={i}
-                    source={{
-                        uri: `${framesPath}/${imageFilePrefix}${getCurrentFrameWithDecimalZeroes(
-                            frameNumber,
-                            totalDecimalZeroes
-                        )}.${imageFileExtension}`,
-                    }}
-                    style={styles.backgroundFrame}
-                    width={50}
-                    height={80}
-                />
+                <Image
+                source={{
+                    uri: `${framesPath}/${imageFilePrefix}${getCurrentFrameWithDecimalZeroes(
+                        frameNumber,
+                        totalDecimalZeroes
+                    )}.${imageFileExtension}`,
+                }}
+                style={{transform: [{translateX: frameNumber}]}}
+                // style={styles.backgroundFrame}
+                width={50}
+                height={80}
+            />
+                // <View style={styles.backgroundFrame}></View>
+                // <ImageBackground
+                //     key={i}
+                //     source={{
+                //         uri: `${framesPath}/${imageFilePrefix}${getCurrentFrameWithDecimalZeroes(
+                //             frameNumber,
+                //             totalDecimalZeroes
+                //         )}.${imageFileExtension}`,
+                //     }}
+                //     style={styles.backgroundFrame}
+                //     width={50}
+                //     height={80}
+                // />
             ))}
             <View>
                 <Animated.View
@@ -117,6 +129,7 @@ const styles = StyleSheet.create({
         width: 50,
         height: 80,
         opacity: 0.55,
+        
     },
     selectedFrame: {
         backgroundColor: "#000",

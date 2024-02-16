@@ -31,6 +31,7 @@
     "react-native-static-safe-area-insets": "^2.2.0",
     "react-native-vector-icons": "^10.0.0",
     "react-native-video": "^5.2.1",
+    "react-native-video-duration": "^0.1.2",
     "react-native-worklets-core": "0.3.0"
   },
   "devDependencies": {

@@ -5105,6 +5105,11 @@ react-native-vector-icons@^10.0.0:
     prop-types "^15.7.2"
     yargs "^16.1.1"
 
+react-native-video-duration@^0.1.2:
+  version "0.1.2"
+  resolved "https://registry.npmjs.org/react-native-video-duration/-/react-native-video-duration-0.1.2.tgz"
+  integrity sha512-+RYfUrnJ/h0k2b/4m2leJXfLQAtfEHSRRpcpTAgELviucz2olh+aXGHhUuPx1cPLC/v84N6+PYVACEE/I4ojSA==
+
 react-native-video@^5.2.1:
   version "5.2.1"
   resolved "https://registry.npmjs.org/react-native-video/-/react-native-video-5.2.1.tgz"

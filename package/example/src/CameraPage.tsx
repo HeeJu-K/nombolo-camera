@@ -1,12 +1,12 @@
 import * as React from 'react'
 import { useRef, useState, useCallback, useMemo } from 'react'
-import { Pressable, StyleSheet, Text, View } from 'react-native'
+import { Pressable, StyleSheet, Text, View, TouchableOpacity, Dimensions } from 'react-native'
 import { PinchGestureHandler, PinchGestureHandlerGestureEvent, TapGestureHandler } from 'react-native-gesture-handler'
-import Animated, { runOnJS } from 'react-native-reanimated';
+import Animated, { Extrapolate, interpolate, useAnimatedGestureHandler, useAnimatedProps, runOnJS, useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
 import { CameraRuntimeError, PhotoFile, DeviceFilter, useCameraDevice, useCameraDevices, useCameraFormat, useFrameProcessor, VideoFile } from 'react-native-vision-camera'
 import { Camera } from 'react-native-vision-camera'
-import { CONTENT_SPACING, CONTROL_BUTTON_SIZE, MAX_ZOOM_FACTOR, SAFE_AREA_PADDING, SCREEN_HEIGHT, SCREEN_WIDTH } from './Constants'
-import Reanimated, { Extrapolate, interpolate, useAnimatedGestureHandler, useAnimatedProps, useSharedValue } from 'react-native-reanimated'
+import { CONTENT_SPACING, CONTROL_BUTTON_SIZE, MAX_ZOOM_FACTOR, SAFE_AREA_PADDING, SCREEN_HEIGHT, SCREEN_WIDTH, CAPTURE_BUTTON_SIZE } from './Constants'
+import Reanimated from 'react-native-reanimated'
 import { useEffect } from 'react'
 import { useIsForeground } from './hooks/useIsForeground'
 import { StatusBarBlurBackground } from './views/StatusBarBlurBackground'
@@ -27,6 +27,8 @@ Reanimated.addWhitelistedNativeProps({
 })
 
 const SCALE_FULL_ZOOM = 3
+const { width } = Dimensions.get('window');
+const tabSpacing = 20;
 
 type Props = NativeStackScreenProps<Routes, 'CameraPage'>
 export function CameraPage({ navigation }: Props): React.ReactElement {
@@ -36,6 +38,14 @@ export function CameraPage({ navigation }: Props): React.ReactElement {
   const zoom = useSharedValue(0)
   const isPressingButton = useSharedValue(false)
   const [isRecording, setIsRecording] = useState(false)
+  const [captureMode, setCaptureMode] = useState<'photo' | 'video'>('photo')
+  const [isRecordingFinished, setIsRecordingFinished] = useState(false)
+
+  const mediaSwitch = useAnimatedStyle(() => {
+    return {
+      transform: [{ translateX: withSpring(captureMode === 'video' ? 0 : width / 5) }],
+    };
+  });
 
   // check if camera page is active
   const isFocussed = useIsFocused()
@@ -128,7 +138,7 @@ export function CameraPage({ navigation }: Props): React.ReactElement {
     console.log('Camera initialized!')
     setIsCameraInitialized(true)
   }, [])
-  
+
   const onMediaCaptured = useCallback(
     (media: PhotoFile | VideoFile, type: 'photo' | 'video') => {
       console.log(`Media captured! ${JSON.stringify(media)}`)
@@ -165,7 +175,7 @@ export function CameraPage({ navigation }: Props): React.ReactElement {
   // The gesture handler maps the linear pinch gesture (0 - 1) to an exponential curve since a camera's zoom
   // function does not appear linear to the user. (aka zoom 0.1 -> 0.2 does not look equal in difference as 0.8 -> 0.9)
   const onPinchGesture = useAnimatedGestureHandler<PinchGestureHandlerGestureEvent, { startZoom?: number }>({
-    
+
     onStart: (_, context) => {
       runOnJS(setDeviceConfig)({
         ...deviceConfig,
@@ -176,7 +186,7 @@ export function CameraPage({ navigation }: Props): React.ReactElement {
     },
     onActive: (event, context) => {
       // we're trying to map the scale gesture to a linear zoom here
-      
+
       const startZoom = context.startZoom ?? 0
       const scale = interpolate(event.scale, [1 - 1 / SCALE_FULL_ZOOM, 1, SCALE_FULL_ZOOM], [-1, 0, 1], Extrapolate.CLAMP)
       zoom.value = interpolate(scale, [-1, 0, 1], [minZoom, startZoom, maxZoom], Extrapolate.CLAMP)
@@ -225,7 +235,7 @@ export function CameraPage({ navigation }: Props): React.ReactElement {
                 enableFpsGraph={true}
                 orientation="portrait"
                 photo={true}
-                video={true}
+                video={false}
                 audio={hasMicrophonePermission}
                 frameProcessor={frameProcessor}
               />
@@ -233,20 +243,47 @@ export function CameraPage({ navigation }: Props): React.ReactElement {
           </Reanimated.View>
         </PinchGestureHandler>
       )}
+      <View style={styles.captureButtonContainer}>
+        <View style={styles.mediaTabContainer}>
+          <Animated.View style={[styles.mediaTab, mediaSwitch]}>
+            <TouchableOpacity onPress={() => setCaptureMode('photo')}>
+              <Text style={[styles.tabText, captureMode == 'photo' && styles.activeMode]}>Photo</Text>
+            </TouchableOpacity>
+          </Animated.View>
+          <Animated.View style={[styles.mediaTab, mediaSwitch]}>
+            <TouchableOpacity onPress={() => setCaptureMode('video')}>
+              <Text style={[styles.tabText, captureMode == 'video' && styles.activeMode]}>Video</Text>
+            </TouchableOpacity>
+          </Animated.View>
+        </View>
+        <View style={styles.buttonsContainer}>
+          <CaptureButton
+            style={styles.captureButton}
+            camera={camera}
+            onMediaCaptured={onMediaCaptured}
+            isRecording={isRecording}
+            setIsRecording={setIsRecording}
+            cameraZoom={zoom}
+            minZoom={minZoom}
+            maxZoom={maxZoom}
+            flash={supportsFlash ? flash : 'off'}
+            enabled={isCameraInitialized && isActive}
+            setIsPressingButton={setIsPressingButton}
+            captureMode={captureMode}
+            isRecordingFinished={isRecordingFinished}
+            setIsRecordingFinished={setIsRecordingFinished}
+          />
+          <View style={styles.videoControlContainer}>
+            <TouchableOpacity >
+              <Text>x</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setIsRecordingFinished(true)}>
+              <Text>Done</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
 
-      <CaptureButton
-        style={styles.captureButton}
-        camera={camera}
-        onMediaCaptured={onMediaCaptured}
-        setIsRecording={setIsRecording}
-        cameraZoom={zoom}
-        minZoom={minZoom}
-        maxZoom={maxZoom}
-        flash={supportsFlash ? flash : 'off'}
-        enabled={isCameraInitialized && isActive}
-        setIsPressingButton={setIsPressingButton}
-      />
-      
       <StatusBarBlurBackground />
 
       <View style={styles.rightButtonRow}>
@@ -314,10 +351,59 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: 'black',
   },
+  captureButtonContainer: {
+    position: 'absolute',
+    height: '20%',
+    width: '100%',
+    alignItems: 'center',
+    alignSelf: 'center',
+    backgroundColor: 'rgba(140, 140, 140, 0.5)',
+    bottom: 0,
+  },
+  mediaTabContainer: {
+    flexDirection: 'row',
+    width: '100%',
+    top: 5,
+    marginLeft: 2 * width / 5
+  },
+  mediaTab: {
+    width: width / 5,
+    alignItems: 'center',
+    alignSelf: 'center',
+  },
+  tabText: {
+    fontSize: 16,
+  },
+  activeMode: {
+    fontWeight: 'bold'
+  },
+  buttonsContainer: {
+    width: (SCREEN_WIDTH + CAPTURE_BUTTON_SIZE) / 2,
+    height: '80%',
+    position: 'absolute',
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignContent: 'center',
+    // justifyContent: 'center',
+    bottom: '10%',
+    right: 0,
+    flex: 1,
+  },
   captureButton: {
     position: 'absolute',
-    alignSelf: 'center',
-    bottom: SAFE_AREA_PADDING.paddingBottom,
+    justifyContent: 'center',
+    alignItems: 'center',
+    // alignContent:'center',
+    // bottom: SAFE_AREA_PADDING.paddingBottom,
+  },
+  videoControlContainer: {
+    width: (SCREEN_WIDTH - CAPTURE_BUTTON_SIZE) / 2,
+    alignItems: 'center',
+    flexDirection: 'row',
+    right: 0,
+    justifyContent: 'space-evenly',
+    marginRight: 0,
+    marginLeft: 'auto',
   },
   button: {
     marginBottom: CONTENT_SPACING,
