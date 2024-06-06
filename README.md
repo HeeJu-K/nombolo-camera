@@ -40,7 +40,19 @@ npm run ios
 
 # OR using Yarn
 yarn ios
+
 ```
+Run instructions for Android:
+   • Have an Android emulator running (quickest way to get started), or a device connected.
+   • cd "/Users/heeju/Develop/nombolo/nomcamretry/NomboloCamera" && npx react-native run-android
+
+Run instructions for iOS:
+   • cd "/Users/heeju/Develop/nombolo/nomcamretry/NomboloCamera"
+   
+   • npx react-native run-ios
+   - or -
+   • Open NomboloCamera/ios/NomboloCamera.xcworkspace in Xcode or run "xed -b ios"
+   • Hit the Run button
 
 If everything is set up _correctly_, you should see your new app running in your _Android Emulator_ or _iOS Simulator_ shortly provided you have set up your emulator/simulator correctly.
 
