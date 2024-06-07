@@ -17,15 +17,7 @@ import { PermissionsPage } from './PermissionsPage'
 import { MediaPage } from './MediaPage'
 import { CameraPage } from './CameraPage'
 
-import {
-  SafeAreaView,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  useColorScheme,
-  View,
-} from 'react-native';
+import { StyleSheet, Text, useColorScheme, View, } from 'react-native';
 
 
 const Stack = createNativeStackNavigator<Routes>()
