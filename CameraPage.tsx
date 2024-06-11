@@ -2,28 +2,27 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import type { Routes } from './Routes'
 
 // import * as React from 'react'
-import React, { useRef, useState, useCallback, useMemo } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-import { Camera, CameraRuntimeError, PhotoFile, DeviceFilter, PhysicalCameraDeviceType, useCameraDevice, useCameraDevices, useCameraFormat, useFrameProcessor, VideoFile } from 'react-native-vision-camera'
+import { Camera, CameraProps, CameraRuntimeError, PhotoFile, DeviceFilter, PhysicalCameraDeviceType, useCameraDevice, useCameraDevices, useCameraFormat, useFrameProcessor, VideoFile } from 'react-native-vision-camera'
 import Animated, { Extrapolate, interpolate, useAnimatedGestureHandler, useAnimatedProps, runOnJS, useSharedValue, useDerivedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
 import Reanimated from 'react-native-reanimated'
 import { useIsFocused } from '@react-navigation/core'
 
-
 import { Pressable, StyleSheet, Text, View, TouchableOpacity, Dimensions, ScrollView } from 'react-native'
-import { PinchGestureHandler, PinchGestureHandlerGestureEvent, TapGestureHandler } from 'react-native-gesture-handler'
+import { Gesture, GestureDetector, PinchGestureHandler, PinchGestureHandlerGestureEvent, TapGestureHandler } from 'react-native-gesture-handler'
 
 import { useIsForeground } from './hooks/useIsForeground.ts'
-// import { examplePlugin } from './frame-processors/ExamplePlugin'
-// import { exampleKotlinSwiftPlugin } from './frame-processors/ExampleKotlinSwiftPlugin'
-import { usePreferredCameraDevice } from './hooks/usePreferredCameraDevice'
+import { examplePlugin } from './frame-processors/ExamplePlugin'
+import { exampleKotlinSwiftPlugin } from './frame-processors/ExampleKotlinSwiftPlugin'
+import { usePreferredCameraDevice } from './hooks/usePreferredCameraDevice.ts'
 import { CONTENT_SPACING, CONTROL_BUTTON_SIZE, FINISH_BUTTON_SIZE, MAX_ZOOM_FACTOR, SAFE_AREA_PADDING, SCREEN_HEIGHT, SCREEN_WIDTH, CAPTURE_BUTTON_SIZE } from './Constants'
 
-const ReanimatedCamera = Reanimated.createAnimatedComponent(Camera)
 Reanimated.addWhitelistedNativeProps({
   zoom: true,
-  exposure: true,
+  // exposure: true,
 })
+const ReanimatedCamera = Reanimated.createAnimatedComponent(Camera)
 
 const SCALE_FULL_ZOOM = 3
 const { width } = Dimensions.get('window');
@@ -45,66 +44,160 @@ export function CameraPage({ navigation }: Props): React.ReactElement {
     physicalDevices: ['ultra-wide-angle-camera', 'wide-angle-camera', 'telephoto-camera'],
   });
   const device = useCameraDevice('back', deviceConfig);
+
   const devices = useCameraDevices()
 
+  // region camera settings
   const [cameraPosition, setCameraPosition] = useState<'front' | 'back'>('back')
+  const [enableHdr, setEnableHdr] = useState(false)
+  const [flash, setFlash] = useState<'off' | 'on'>('off')
+  const [enableNightMode, setEnableNightMode] = useState(false)
+  // const zoom = useSharedValue(0)
+  // const [zoomValue, setZoomValue] = useState(1);
+  const isPinching = useSharedValue(false);
+  const zoom = useSharedValue(device?.neutralZoom ?? 1)
 
-  // region Camera Config
-  // const frameProcessor = useFrameProcessor((frame) => {
-  //   'worklet'
+  const zoomOffset = useSharedValue(0);
+  const gesture = Gesture.Pinch()
+    .onBegin(() => {
+      zoomOffset.value = zoom.value
+    })
+    .onUpdate(event => {
+      const z = zoomOffset.value * event.scale
+      zoom.value = interpolate(
+        z,
+        [1, 10],
+        [device?.minZoom ?? 1, device?.maxZoom ?? 16],
+        Extrapolate.CLAMP,
+      )
+    })
 
-  //   // console.log(`${frame.timestamp}: ${frame.width}x${frame.height} ${frame.pixelFormat} Frame (${frame.orientation})`)
-  //   examplePlugin(frame)
-  //   exampleKotlinSwiftPlugin(frame)
-  // }, [])
+  const animatedProps = useAnimatedProps<CameraProps>(
+    () => ({ zoom: zoom.value }),
+    [zoom]
+  )
 
-  // end region Camera Config
+  const [targetFps, setTargetFps] = useState(30)
 
+  const screenAspectRatio = SCREEN_HEIGHT / SCREEN_WIDTH
+  const format = useCameraFormat(device, [
+    { fps: targetFps },
+    { videoAspectRatio: screenAspectRatio },
+    { videoResolution: 'max' },
+    { photoAspectRatio: screenAspectRatio },
+    { photoResolution: 'max' },
+  ])
   const onFlipCameraPressed = useCallback(() => {
     setCameraPosition((p) => (p === 'back' ? 'front' : 'back'))
   }, [])
+  const onFlashPressed = useCallback(() => {
+    setFlash((f) => (f === 'off' ? 'on' : 'off'))
+  }, [])
+  // const onExposurePressed = () => {
+  //   setIsExposureSliderVisible(!isExposureSliderVisible)
+  // }
+  // const onSettingVisible = () => {
+  //   setIsExposureSliderVisible(false)
+  //   setIsSettingsVisible(!isSettingsVisible)
+  // }
+
+  // const onZoomPressed = (value: number) => {
+
+  //   if (value === zoom.value) {
+  //     zoom.value = neutralZoom
+  //     setZoomValue(neutralZoom);
+  //   } else {
+  //     zoom.value = value
+  //     setZoomValue(value);
+  //   }
+  // }
+  // const onZoomChange = () => {
+  //   if (zoomValue < neutralZoom) {
+  //     setIsUltra(true);
+  //     setIsWide(false);
+  //     setIsTele(false);
+  //   }
+  //   else if (neutralZoom <= zoomValue && zoomValue < neutralZoom * 2) {
+  //     setIsUltra(false);
+  //     setIsWide(true);
+  //     setIsTele(false);
+  //   }
+  //   else if (zoomValue >= neutralZoom * 2) {
+  //     setIsUltra(false);
+  //     setIsWide(false);
+  //     setIsTele(true);
+  //   }
+  // }
+  // useEffect(() => {
+  //   onZoomChange();
+  // }, [zoomValue])
+  // end region camera settings
   //#region Tap Gesture
   const onDoubleTap = useCallback(() => {
     onFlipCameraPressed()
   }, [onFlipCameraPressed])
   //#endregion
 
-    // Camera callbacks
-    const onError = useCallback((error: CameraRuntimeError) => {
-      console.error(error)
-    }, [])
-    const onInitialized = useCallback(() => {
-      console.log('Camera initialized!')
-      setIsCameraInitialized(true)
-    }, [])
+  // Camera callbacks
+  const onError = useCallback((error: CameraRuntimeError) => {
+    console.error(error)
+  }, [])
+  const onInitialized = useCallback(() => {
+    console.log('Camera initialized!')
+    setIsCameraInitialized(true)
+  }, [])
 
-  //#region Pinch to Zoom Gesture
+  // #region Pinch to Zoom Gesture
   // The gesture handler maps the linear pinch gesture (0 - 1) to an exponential curve since a camera's zoom
   // function does not appear linear to the user. (aka zoom 0.1 -> 0.2 does not look equal in difference as 0.8 -> 0.9)
   const onPinchGesture = useAnimatedGestureHandler<PinchGestureHandlerGestureEvent, { startZoom?: number }>({
 
-    // onStart: (_, context) => {
-    //     runOnJS(setDeviceConfig)({
-    //         ...deviceConfig,
-    //         physicalDevices: ['ultra-wide-angle-camera', 'wide-angle-camera', 'telephoto-camera'],
-    //     });
-    //     // console.log("start zoom value", zoom.value)
-    //     context.startZoom = zoom.value
-    //     isPinching.value = true;
-    // },
-    // onActive: (event, context) => {
-    //     // we're trying to map the scale gesture to a linear zoom here
+    onStart: (_, context) => {
+      // runOnJS(setDeviceConfig)({
+      //   ...deviceConfig,
+      //   physicalDevices: ['ultra-wide-angle-camera', 'wide-angle-camera', 'telephoto-camera'],
+      // });
+      // console.log("start zoom value", zoom.value)
+      context.startZoom = zoom.value
+      isPinching.value = true;
+    },
+    onActive: (event, context) => {
+      // we're trying to map the scale gesture to a linear zoom here
 
-    //     const startZoom = context.startZoom ?? 0
-    //     const scale = interpolate(event.scale, [1 - 1 / SCALE_FULL_ZOOM, 1, SCALE_FULL_ZOOM], [-1, 0, 1], Extrapolate.CLAMP)
-    //     zoom.value = interpolate(scale, [-1, 0, 1], [minZoom, startZoom, maxZoom], Extrapolate.CLAMP)
-    //     // console.log("here pinch", zoom.value)
-    //     runOnJS(setZoomValue)(zoom.value);
-    // },
-    // onEnd: () => {
-    //     isPinching.value = false;
-    // }
+      const startZoom = context.startZoom ?? 0
+      const scale = interpolate(event.scale, [1 - 1 / SCALE_FULL_ZOOM, 1, SCALE_FULL_ZOOM], [-1, 0, 1], Extrapolate.CLAMP)
+      zoom.value = interpolate(scale, [-1, 0, 1], [minZoom, startZoom, maxZoom], Extrapolate.CLAMP)
+      // console.log("here pinch", zoom.value)
+      // runOnJS(setZoomValue)(zoom.value);
+    },
+    onEnd: () => {
+      isPinching.value = false;
+    }
   })
+  //#endregion pinch to zoom gesture
+
+  //#region Animated Zoom
+  const neutralZoom = device?.neutralZoom ?? 1
+  useEffect(() => {
+    // Run everytime the neutralZoomScaled value changes. (reset zoom when device changes)
+    zoom.value = neutralZoom
+  }, [neutralZoom, zoom])
+  // This just maps the zoom factor to a percentage value.
+  // so e.g. for [min, neutr., max] values [1, 2, 128] this would result in [0, 0.0081, 1]
+  const minZoom = device?.minZoom ?? 1
+  const maxZoom = Math.min(device?.maxZoom ?? 1, MAX_ZOOM_FACTOR)
+
+  const [isUltra, setIsUltra] = useState(false);
+  const [isWide, setIsWide] = useState(true);
+  const [isTele, setIsTele] = useState(false);
+
+  const cameraAnimatedProps = useAnimatedProps(() => {
+    const z = Math.max(Math.min(zoom.value, maxZoom), minZoom)
+    return {
+      zoom: z,
+      // exposure: exposureValue.value,
+    }
+  }, [maxZoom, minZoom, zoom])
   //#endregion
 
   const onMediaCaptured = useCallback(
@@ -119,33 +212,27 @@ export function CameraPage({ navigation }: Props): React.ReactElement {
     [navigation],
   )
 
+  const frameProcessor = useFrameProcessor((frame) => {
+    'worklet'
+
+    // console.log(`${frame.timestamp}: ${frame.width}x${frame.height} ${frame.pixelFormat} Frame (${frame.orientation})`)
+    examplePlugin(frame)
+    exampleKotlinSwiftPlugin(frame)
+  }, [])
+
 
   return (
     <View style={styles.container}>
       {device != null && (
         <PinchGestureHandler onGestureEvent={onPinchGesture} enabled={isActive}>
           <Reanimated.View style={StyleSheet.absoluteFill}>
-            <TapGestureHandler onEnded={onDoubleTap} numberOfTaps={2}>
+            {/* <TapGestureHandler onEnded={onDoubleTap} numberOfTaps={2}>
               <ReanimatedCamera
                 ref={camera}
                 style={StyleSheet.absoluteFill}
                 device={device}
-                isActive={isActive}
-                onInitialized={onInitialized}
-                onError={onError}
-                enableZoomGesture={false}
-                orientation="portrait"
-                photo={true}
-                video={false}
-                audio={hasMicrophonePermission}
-                // frameProcessor={frameProcessor}
-              />
-              {/* <ReanimatedCamera
-                ref={camera}
-                style={StyleSheet.absoluteFill}
-                device={device}
                 format={format}
-                fps={fps}
+                // fps={fps}
                 photoHdr={enableHdr}
                 videoHdr={enableHdr}
                 lowLightBoost={device.supportsLowLightBoost && enableNightMode}
@@ -154,15 +241,24 @@ export function CameraPage({ navigation }: Props): React.ReactElement {
                 onError={onError}
                 enableZoomGesture={false}
                 animatedProps={cameraAnimatedProps}
-                exposure={exposureValue}
+                // exposure={exposureValue}
                 enableFpsGraph={true}
                 orientation="portrait"
                 photo={true}
                 video={false}
                 audio={hasMicrophonePermission}
-                frameProcessor={frameProcessor}
-              /> */}
-            </TapGestureHandler>
+                // frameProcessor={frameProcessor}
+              />
+
+            </TapGestureHandler> */}
+            <GestureDetector gesture={gesture}>
+              <ReanimatedCamera
+                style={StyleSheet.absoluteFill}
+                device={device}
+                isActive={true}
+                animatedProps={animatedProps}
+              />
+            </GestureDetector>
 
           </Reanimated.View>
         </PinchGestureHandler>
