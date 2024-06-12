@@ -46,14 +46,14 @@ export function App(): React.ReactElement | null {
           initialRouteName={showPermissionsPage ? 'PermissionsPage' : 'CameraPage'}>
           <Stack.Screen name="PermissionsPage" component={PermissionsPage} />
           <Stack.Screen name="CameraPage" component={CameraPage} />
-          {/* <Stack.Screen
+          <Stack.Screen
             name="MediaPage"
             component={MediaPage}
             options={{
               animation: 'none',
               presentation: 'transparentModal',
             }}
-          /> */}
+          />
         </Stack.Navigator>
       </GestureHandlerRootView>
     </NavigationContainer>

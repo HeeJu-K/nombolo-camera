@@ -12,6 +12,7 @@ import { useIsFocused } from '@react-navigation/core'
 import { Pressable, StyleSheet, Text, View, TouchableOpacity, Dimensions, ScrollView } from 'react-native'
 import { Gesture, GestureDetector, PinchGestureHandler, PinchGestureHandlerGestureEvent, TapGestureHandler } from 'react-native-gesture-handler'
 
+import { CaptureButton } from './views/CaptureButton'
 import { useIsForeground } from './hooks/useIsForeground.ts'
 import { examplePlugin } from './frame-processors/ExamplePlugin'
 import { exampleKotlinSwiftPlugin } from './frame-processors/ExampleKotlinSwiftPlugin'
@@ -44,7 +45,6 @@ export function CameraPage({ navigation }: Props): React.ReactElement {
     physicalDevices: ['ultra-wide-angle-camera', 'wide-angle-camera', 'telephoto-camera'],
   });
   const device = useCameraDevice('back', deviceConfig);
-
   const devices = useCameraDevices()
 
   // region camera settings
@@ -53,9 +53,11 @@ export function CameraPage({ navigation }: Props): React.ReactElement {
   const [flash, setFlash] = useState<'off' | 'on'>('off')
   const [enableNightMode, setEnableNightMode] = useState(false)
   // const zoom = useSharedValue(0)
-  // const [zoomValue, setZoomValue] = useState(1);
-  const isPinching = useSharedValue(false);
   const zoom = useSharedValue(device?.neutralZoom ?? 1)
+  const [zoomValue, setZoomValue] = useState(1);
+  const isPinching = useSharedValue(false);
+  const [isSettingsVisible, setIsSettingsVisible] = useState(false)
+  const [isExposureSliderVisible, setIsExposureSliderVisible] = useState(false)
 
   const zoomOffset = useSharedValue(0);
   const gesture = Gesture.Pinch()
@@ -78,7 +80,6 @@ export function CameraPage({ navigation }: Props): React.ReactElement {
   )
 
   const [targetFps, setTargetFps] = useState(30)
-
   const screenAspectRatio = SCREEN_HEIGHT / SCREEN_WIDTH
   const format = useCameraFormat(device, [
     { fps: targetFps },
@@ -87,19 +88,25 @@ export function CameraPage({ navigation }: Props): React.ReactElement {
     { photoAspectRatio: screenAspectRatio },
     { photoResolution: 'max' },
   ])
+  const fps = Math.min(format?.maxFps ?? 1, targetFps)
+  const supports60Fps = useMemo(() => device?.formats.some((f) => f.maxFps >= 60), [device?.formats])
+  const supportsFlash = device?.hasFlash ?? false
+  const supportsHdr = format?.supportsPhotoHdr
+  const canToggleNightMode = device?.supportsLowLightBoost ?? false
+
   const onFlipCameraPressed = useCallback(() => {
     setCameraPosition((p) => (p === 'back' ? 'front' : 'back'))
   }, [])
   const onFlashPressed = useCallback(() => {
     setFlash((f) => (f === 'off' ? 'on' : 'off'))
   }, [])
-  // const onExposurePressed = () => {
-  //   setIsExposureSliderVisible(!isExposureSliderVisible)
-  // }
-  // const onSettingVisible = () => {
-  //   setIsExposureSliderVisible(false)
-  //   setIsSettingsVisible(!isSettingsVisible)
-  // }
+  const onExposurePressed = () => {
+    setIsExposureSliderVisible(!isExposureSliderVisible)
+  }
+  const onSettingVisible = () => {
+    setIsExposureSliderVisible(false)
+    setIsSettingsVisible(!isSettingsVisible)
+  }
 
   // const onZoomPressed = (value: number) => {
 
@@ -191,6 +198,30 @@ export function CameraPage({ navigation }: Props): React.ReactElement {
   const [isWide, setIsWide] = useState(true);
   const [isTele, setIsTele] = useState(false);
 
+  const { hasWide, hasUltra, hasTele } = useMemo(() => {
+    let hasWide = false;
+    let hasUltra = false;
+    let hasTele = false;
+
+    devices.forEach(entry => {
+      const physicalDevices = entry.physicalDevices;
+
+      if (Array.isArray(physicalDevices)) {
+        if (physicalDevices.includes('wide-angle-camera')) {
+          hasWide = true;
+        }
+        if (physicalDevices.includes('ultra-wide-angle-camera')) {
+          hasUltra = true;
+        }
+        if (physicalDevices.includes('telephoto-camera')) {
+          hasTele = true;
+        }
+      }
+    });
+
+    return { hasWide, hasUltra, hasTele };
+  }, [devices]);
+
   const cameraAnimatedProps = useAnimatedProps(() => {
     const z = Math.max(Math.min(zoom.value, maxZoom), minZoom)
     return {
@@ -200,13 +231,86 @@ export function CameraPage({ navigation }: Props): React.ReactElement {
   }, [maxZoom, minZoom, zoom])
   //#endregion
 
+  //#region exposure slider
+  const [exposureValue, setExposureValue] = useState(0)
+
+  const handleSliderChange = (value: number) => {
+    setExposureValue(value);
+  };
+  //#endregion exposure slider
+
+  // region capture button
+  const isPressingButton = useSharedValue(false)
+  const [isRecording, setIsRecording] = useState(false)
+  const [captureMode, setCaptureMode] = useState<'photo' | 'video'>('photo')
+  const [isRecordingFinished, setIsRecordingFinished] = useState(false)
+
+  const mediaSwitch = useAnimatedStyle(() => {
+    return {
+      transform: [{ translateX: withSpring(captureMode === 'photo' ? 0 : 50) }],
+    };
+  });
+
+  const setIsPressingButton = useCallback(
+    (_isPressingButton: boolean) => {
+      isPressingButton.value = _isPressingButton
+    },
+    [isPressingButton],
+  )
+  //endregion capture button
+
+
+  // start region timer
+  const [isTimerRunning, setIsTimerRunning] = useState(false);
+  const [elapsedTime, setElapsedTime] = useState(0);
+  const [formattedTime, setFormattedTime] = useState('0:00');
+  const [timerId, setTimerId] = useState<NodeJS.Timeout | null>(null);
+  // calculate elapsted time
+  useEffect(() => {
+
+    if (isTimerRunning) {
+      const id = setInterval(() => {
+        setElapsedTime((prevTime) => prevTime + 1);
+      }, 1000);
+
+      setTimerId(id);
+
+      return () => clearInterval(id);
+
+    } else {
+      if (timerId) {
+        clearInterval(timerId);
+        setTimerId(null);
+      }
+    }
+  }, [isTimerRunning]);
+  useEffect(() => {
+    const minutes = Math.floor(elapsedTime / 60);
+    const seconds = elapsedTime % 60;
+    const formattedSeconds = seconds.toString().padStart(2, '0');
+    setFormattedTime(`${minutes}:${formattedSeconds}`);
+  }, [elapsedTime]);
+  // control timer
+  useEffect(() => {
+    if (isRecordingFinished) {
+      setElapsedTime(0);
+    }
+    if (isRecording) {
+      setIsTimerRunning(true);
+    } else {
+      setIsTimerRunning(false);
+    }
+  }, [isRecording, isRecordingFinished])
+
+  // endregion timer
+
   const onMediaCaptured = useCallback(
     (media: PhotoFile | VideoFile, type: 'photo' | 'video') => {
       // console.log(`Media captured! ${JSON.stringify(media)}`)
       navigation.navigate('MediaPage', {
         path: media.path,
         type: type,
-        duration: (media as VideoFile).duration || 0,
+        // duration: (media as VideoFile).duration || 0,
       })
     },
     [navigation],
@@ -253,13 +357,21 @@ export function CameraPage({ navigation }: Props): React.ReactElement {
             </TapGestureHandler> */}
             <GestureDetector gesture={gesture}>
               <ReanimatedCamera
+                ref={camera}
                 style={StyleSheet.absoluteFill}
                 device={device}
                 isActive={true}
                 animatedProps={animatedProps}
+                onInitialized={onInitialized}
+                onError={onError}
+                photo={true}
+                video={true}
+                audio={hasMicrophonePermission}
+                exposure={exposureValue}
+                lowLightBoost={device.supportsLowLightBoost && enableNightMode}
+                orientation="portrait"
               />
             </GestureDetector>
-
           </Reanimated.View>
         </PinchGestureHandler>
       )}
@@ -352,7 +464,7 @@ export function CameraPage({ navigation }: Props): React.ReactElement {
             <MaterialIcon name={'tune'} color="white" size={30} />
           </PressableOpacity> */}
 
-          {/* <CaptureButton
+          <CaptureButton
             style={styles.captureButton}
             camera={camera}
             onMediaCaptured={onMediaCaptured}
@@ -367,7 +479,7 @@ export function CameraPage({ navigation }: Props): React.ReactElement {
             captureMode={captureMode}
             isRecordingFinished={isRecordingFinished}
             setIsRecordingFinished={setIsRecordingFinished}
-          /> */}
+          />
           {/* <PressableOpacity style={styles.deleteButton} >
             <Text>x</Text>
           </PressableOpacity> */}

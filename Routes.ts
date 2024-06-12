@@ -7,7 +7,7 @@ export type Routes = {
   MediaPage: {
     path: string
     type: 'video' | 'photo'
-    duration: number
+    // duration: number
   }
   Devices: undefined
 }
