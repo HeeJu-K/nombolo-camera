@@ -324,7 +324,7 @@ export function CameraPage({ navigation }: Props): React.ReactElement {
       navigation.navigate('MediaPage', {
         path: media.path,
         type: type,
-        // duration: (media as VideoFile).duration || 0,
+        duration: (media as VideoFile).duration || 0,
       })
     },
     [navigation],
