@@ -4,5 +4,6 @@
     "src",
     "index.js",
     "types",
+    "declarations.d.ts"
   ],
 }

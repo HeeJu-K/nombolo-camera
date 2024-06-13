@@ -11,12 +11,19 @@ import { useIsFocused } from '@react-navigation/core'
 
 import { Pressable, StyleSheet, Text, View, TouchableOpacity, Dimensions, ScrollView } from 'react-native'
 import { Gesture, GestureDetector, PinchGestureHandler, PinchGestureHandlerGestureEvent, TapGestureHandler } from 'react-native-gesture-handler'
+import { PressableOpacity } from 'react-native-pressable-opacity'
+import MaterialIcon from 'react-native-vector-icons/MaterialCommunityIcons'
+import IonIcon from 'react-native-vector-icons/Ionicons'
 
-import { CaptureButton } from './views/CaptureButton'
 import { useIsForeground } from './hooks/useIsForeground.ts'
 import { examplePlugin } from './frame-processors/ExamplePlugin'
 import { exampleKotlinSwiftPlugin } from './frame-processors/ExampleKotlinSwiftPlugin'
 import { usePreferredCameraDevice } from './hooks/usePreferredCameraDevice.ts'
+import { StatusBarBlurBackground } from './views/StatusBarBlurBackground'
+import { CaptureButton } from './views/CaptureButton'
+import RulerSlider from './components/RulerSlider'
+import CameraIcon from './lib/CameraIcon.svg'
+import VideoIcon from './lib/VideoIcon.svg'
 import { CONTENT_SPACING, CONTROL_BUTTON_SIZE, FINISH_BUTTON_SIZE, MAX_ZOOM_FACTOR, SAFE_AREA_PADDING, SCREEN_HEIGHT, SCREEN_WIDTH, CAPTURE_BUTTON_SIZE } from './Constants'
 
 Reanimated.addWhitelistedNativeProps({
@@ -53,7 +60,9 @@ export function CameraPage({ navigation }: Props): React.ReactElement {
   const [flash, setFlash] = useState<'off' | 'on'>('off')
   const [enableNightMode, setEnableNightMode] = useState(false)
   // const zoom = useSharedValue(0)
-  const zoom = useSharedValue(device?.neutralZoom ?? 1)
+  const neutralZoom = device?.neutralZoom ?? 1
+  const zoom = useSharedValue(neutralZoom)
+  // const zoom = useSharedValue(device?.neutralZoom ?? 1)
   const [zoomValue, setZoomValue] = useState(1);
   const isPinching = useSharedValue(false);
   const [isSettingsVisible, setIsSettingsVisible] = useState(false)
@@ -72,6 +81,7 @@ export function CameraPage({ navigation }: Props): React.ReactElement {
         [device?.minZoom ?? 1, device?.maxZoom ?? 16],
         Extrapolate.CLAMP,
       )
+      runOnJS(setZoomValue)(zoom.value);
     })
 
   const animatedProps = useAnimatedProps<CameraProps>(
@@ -108,36 +118,40 @@ export function CameraPage({ navigation }: Props): React.ReactElement {
     setIsSettingsVisible(!isSettingsVisible)
   }
 
-  // const onZoomPressed = (value: number) => {
+  const onZoomPressed = (value: number) => {
 
-  //   if (value === zoom.value) {
-  //     zoom.value = neutralZoom
-  //     setZoomValue(neutralZoom);
-  //   } else {
-  //     zoom.value = value
-  //     setZoomValue(value);
-  //   }
-  // }
-  // const onZoomChange = () => {
-  //   if (zoomValue < neutralZoom) {
-  //     setIsUltra(true);
-  //     setIsWide(false);
-  //     setIsTele(false);
-  //   }
-  //   else if (neutralZoom <= zoomValue && zoomValue < neutralZoom * 2) {
-  //     setIsUltra(false);
-  //     setIsWide(true);
-  //     setIsTele(false);
-  //   }
-  //   else if (zoomValue >= neutralZoom * 2) {
-  //     setIsUltra(false);
-  //     setIsWide(false);
-  //     setIsTele(true);
-  //   }
-  // }
-  // useEffect(() => {
-  //   onZoomChange();
-  // }, [zoomValue])
+    if (value === zoom.value) {
+      zoom.value = neutralZoom
+      setZoomValue(neutralZoom);
+    } else {
+      zoom.value = value
+      setZoomValue(value);
+    }
+  }
+  const onZoomChange = () => {
+    if (zoomValue < neutralZoom) {
+      setIsUltra(true);
+      setIsWide(false);
+      setIsTele(false);
+    }
+    else if (neutralZoom <= zoomValue && zoomValue < neutralZoom * 2) {
+      setIsUltra(false);
+      setIsWide(true);
+      setIsTele(false);
+    }
+    else if (zoomValue >= neutralZoom * 2) {
+      setIsUltra(false);
+      setIsWide(false);
+      setIsTele(true);
+    }
+  }
+  useEffect(() => {
+    onZoomChange();
+  }, [zoomValue])
+  useEffect(() => {
+    // Run everytime the neutralZoomScaled value changes. (reset zoom when device changes)
+    zoom.value = neutralZoom
+  }, [neutralZoom, zoom])
   // end region camera settings
   //#region Tap Gesture
   const onDoubleTap = useCallback(() => {
@@ -160,10 +174,10 @@ export function CameraPage({ navigation }: Props): React.ReactElement {
   const onPinchGesture = useAnimatedGestureHandler<PinchGestureHandlerGestureEvent, { startZoom?: number }>({
 
     onStart: (_, context) => {
-      // runOnJS(setDeviceConfig)({
-      //   ...deviceConfig,
-      //   physicalDevices: ['ultra-wide-angle-camera', 'wide-angle-camera', 'telephoto-camera'],
-      // });
+      runOnJS(setDeviceConfig)({
+        ...deviceConfig,
+        physicalDevices: ['ultra-wide-angle-camera', 'wide-angle-camera', 'telephoto-camera'],
+      });
       // console.log("start zoom value", zoom.value)
       context.startZoom = zoom.value
       isPinching.value = true;
@@ -175,7 +189,7 @@ export function CameraPage({ navigation }: Props): React.ReactElement {
       const scale = interpolate(event.scale, [1 - 1 / SCALE_FULL_ZOOM, 1, SCALE_FULL_ZOOM], [-1, 0, 1], Extrapolate.CLAMP)
       zoom.value = interpolate(scale, [-1, 0, 1], [minZoom, startZoom, maxZoom], Extrapolate.CLAMP)
       // console.log("here pinch", zoom.value)
-      // runOnJS(setZoomValue)(zoom.value);
+      runOnJS(setZoomValue)(zoom.value);
     },
     onEnd: () => {
       isPinching.value = false;
@@ -184,7 +198,7 @@ export function CameraPage({ navigation }: Props): React.ReactElement {
   //#endregion pinch to zoom gesture
 
   //#region Animated Zoom
-  const neutralZoom = device?.neutralZoom ?? 1
+  // const neutralZoom = device?.neutralZoom ?? 1
   useEffect(() => {
     // Run everytime the neutralZoomScaled value changes. (reset zoom when device changes)
     zoom.value = neutralZoom
@@ -316,6 +330,14 @@ export function CameraPage({ navigation }: Props): React.ReactElement {
     [navigation],
   )
 
+  useEffect(() => {
+    const f =
+      format != null
+        ? `(${format.photoWidth}x${format.photoHeight} photo / ${format.videoWidth}x${format.videoHeight}@${format.maxFps} video @ ${fps}fps)`
+        : undefined
+    // console.log(`Camera: ${device?.name} | Format: ${f}`)
+  }, [device?.name, format, fps])
+
   const frameProcessor = useFrameProcessor((frame) => {
     'worklet'
 
@@ -375,7 +397,7 @@ export function CameraPage({ navigation }: Props): React.ReactElement {
           </Reanimated.View>
         </PinchGestureHandler>
       )}
-      {/* <View style={styles.topBanner}>
+      <View style={styles.topBanner}>
         <View style={styles.mediaTabContainer}>
           <Animated.View style={[styles.mediaTab, mediaSwitch]}>
           </Animated.View>
@@ -386,9 +408,8 @@ export function CameraPage({ navigation }: Props): React.ReactElement {
             <VideoIcon />
           </TouchableOpacity>
         </View>
-
-      </View> */}
-      {/* {!isSettingsVisible && (
+      </View>
+      {!isSettingsVisible && (
         <Animated.View style={styles.zoomContainer}>
           {hasUltra && (
             <PressableOpacity
@@ -416,8 +437,8 @@ export function CameraPage({ navigation }: Props): React.ReactElement {
             </PressableOpacity>
           )}
         </Animated.View>
-      )} */}
-      {/* {isSettingsVisible && (
+      )}
+      {isSettingsVisible && (
         <View style={styles.settingsContainer}>
           <ScrollView contentContainerStyle={styles.scrollableSetting} horizontal={true} showsHorizontalScrollIndicator={false}>
             {supportsHdr && (
@@ -441,8 +462,8 @@ export function CameraPage({ navigation }: Props): React.ReactElement {
             )}
           </ScrollView>
         </View>
-      )} */}
-      {/* {isExposureSliderVisible &&
+      )}
+      {isExposureSliderVisible &&
         <View style={styles.sliderContainer}>
           <RulerSlider
             minVal={-3}
@@ -451,18 +472,18 @@ export function CameraPage({ navigation }: Props): React.ReactElement {
             onValueChange={handleSliderChange}
           />
         </View>
-      } */}
-      {/* {captureMode == 'video' &&
-          <View style={styles.timerContainer}>
-            <Text style={styles.zoomTextActive}>{formattedTime}</Text>
-          </View>
-        } */}
+      }
+      {captureMode == 'video' &&
+        <View style={styles.timerContainer}>
+          <Text style={styles.zoomTextActive}>{formattedTime}</Text>
+        </View>
+      }
       <View style={styles.captureButtonContainer}>
 
         <View style={styles.buttonsContainer}>
-          {/* <PressableOpacity style={styles.settingsButton} onPress={onSettingVisible}>
+          <PressableOpacity style={styles.settingsButton} onPress={onSettingVisible}>
             <MaterialIcon name={'tune'} color="white" size={30} />
-          </PressableOpacity> */}
+          </PressableOpacity>
 
           <CaptureButton
             style={styles.captureButton}
@@ -483,33 +504,33 @@ export function CameraPage({ navigation }: Props): React.ReactElement {
           {/* <PressableOpacity style={styles.deleteButton} >
             <Text>x</Text>
           </PressableOpacity> */}
-          {/* <PressableOpacity
+          <PressableOpacity
             style={styles.finishButton}
             onPress={() => setIsRecordingFinished(true)}
           >
             <Text style={styles.finishText}>Done</Text>
-          </PressableOpacity> */}
+          </PressableOpacity>
         </View>
       </View>
 
-      {/* <StatusBarBlurBackground /> */}
+      <StatusBarBlurBackground />
 
-      {/* <View style={styles.rightButtonRow}>
+      <View style={styles.rightButtonRow}>
         <PressableOpacity style={styles.button} onPress={onFlipCameraPressed} disabledOpacity={0.4}>
           <IonIcon name="camera-reverse" color="white" size={24} />
         </PressableOpacity>
-        {canToggleNightMode && (
+        {/* {canToggleNightMode && (
           <PressableOpacity style={styles.button} onPress={() => setEnableNightMode(!enableNightMode)} disabledOpacity={0.4}>
             <IonIcon name={enableNightMode ? 'moon' : 'moon-outline'} color="white" size={24} />
           </PressableOpacity>
         )}
         <PressableOpacity style={styles.button} onPress={() => navigation.navigate('Devices')}>
           <IonIcon name="settings-outline" color="white" size={24} />
-        </PressableOpacity>
+        </PressableOpacity> */}
         <PressableOpacity style={styles.button} onPress={() => navigation.navigate('CodeScannerPage')}>
           <IonIcon name="qr-code-outline" color="white" size={24} />
         </PressableOpacity>
-      </View> */}
+      </View>
     </View>
   )
 }
@@ -562,8 +583,8 @@ const styles = StyleSheet.create({
     height: 24,
     borderRadius: 12,
     flexDirection: 'row',
-    // paddingX: 4,
-    // paddingY: 2,
+    paddingX: 4,
+    paddingY: 2,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#352B4460',
@@ -573,8 +594,8 @@ const styles = StyleSheet.create({
     width: 46,
     height: 32,
     borderRadius: 23,
-    // paddingY: 6,
-    // paddingX: 3,
+    paddingY: 6,
+    paddingX: 3,
     backgroundColor: '#352B44',
   },
   zoomText: {
@@ -723,8 +744,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#5C24C9',
     width: 90,
     height: 44,
-    // paddingX: 24,
-    // paddigY: 10,
+    paddingX: 24,
+    paddigY: 10,
     borderRadius: 40,
     justifyContent: 'center',
     alignItems: 'center',
